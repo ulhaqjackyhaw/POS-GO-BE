@@ -1,0 +1,26 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+api.exe
+
+# Environment & Secrets
+.env
+*.local
+
+# Database & SQLite files
+*.db
+*.db-journal
+pos.db
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
