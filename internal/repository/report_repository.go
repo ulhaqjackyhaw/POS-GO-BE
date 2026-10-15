@@ -27,7 +27,7 @@ func (r *ReportRepository) GetSalesSummary(ctx context.Context, storeID string, 
 			COALESCE(SUM(total_amount), 0)
 		FROM sales_transactions
 		WHERE status = 'COMPLETED'
-		  AND ($1 = '' OR store_id = $1)
+		  AND ($1 = '' OR store_id::text = $1)
 		  AND created_at >= $2 AND created_at <= $3
 	`
 	var s model.SalesSummaryReport
@@ -50,7 +50,7 @@ func (r *ReportRepository) GetTopProducts(ctx context.Context, storeID string, f
 		FROM sales_transaction_items sti
 		JOIN sales_transactions st ON sti.transaction_id = st.id
 		WHERE st.status = 'COMPLETED'
-		  AND ($1 = '' OR st.store_id = $1)
+		  AND ($1 = '' OR st.store_id::text = $1)
 		  AND st.created_at >= $2 AND st.created_at <= $3
 		GROUP BY sti.product_id, sti.product_name
 		ORDER BY total_qty DESC

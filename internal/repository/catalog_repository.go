@@ -28,8 +28,8 @@ func (r *CatalogRepository) ListProducts(ctx context.Context, storeID, warehouse
 			COALESCE(ib.quantity, 0) AS current_stock,
 			$2::text AS warehouse_id
 		FROM products p
-		LEFT JOIN store_product_prices spp ON p.id = spp.product_id AND spp.store_id = $1 AND spp.is_active = true
-		LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.warehouse_id = $2
+		LEFT JOIN store_product_prices spp ON p.id = spp.product_id AND spp.store_id::text = $1 AND spp.is_active = true
+		LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.warehouse_id::text = $2
 		WHERE p.is_active = true
 		  AND ($3 = '' OR p.name ILIKE '%' || $3 || '%' OR p.sku ILIKE '%' || $3 || '%' OR p.barcode ILIKE '%' || $3 || '%')
 		ORDER BY p.name ASC
@@ -57,10 +57,13 @@ func (r *CatalogRepository) ListProducts(ctx context.Context, storeID, warehouse
 }
 
 func (r *CatalogRepository) GetProductByID(ctx context.Context, productID string) (*model.Product, error) {
+	if productID == "" {
+		return nil, nil
+	}
 	query := `
 		SELECT id, sku, COALESCE(barcode, ''), name, category_id, unit, base_price, is_active, created_at, updated_at
 		FROM products
-		WHERE id = $1
+		WHERE id::text = $1
 	`
 	var p model.Product
 	err := r.pool.QueryRow(ctx, query, productID).Scan(
@@ -77,6 +80,9 @@ func (r *CatalogRepository) GetProductByID(ctx context.Context, productID string
 }
 
 func (r *CatalogRepository) GetProductWithEffectivePrice(ctx context.Context, productID, storeID, warehouseID string) (*model.ProductWithPrice, error) {
+	if productID == "" {
+		return nil, nil
+	}
 	query := `
 		SELECT 
 			p.id, p.sku, COALESCE(p.barcode, ''), p.name, p.category_id, p.unit, p.base_price, p.is_active, p.created_at, p.updated_at,
@@ -85,9 +91,9 @@ func (r *CatalogRepository) GetProductWithEffectivePrice(ctx context.Context, pr
 			COALESCE(ib.quantity, 0) AS current_stock,
 			$3::text AS warehouse_id
 		FROM products p
-		LEFT JOIN store_product_prices spp ON p.id = spp.product_id AND spp.store_id = $2 AND spp.is_active = true
-		LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.warehouse_id = $3
-		WHERE p.id = $1
+		LEFT JOIN store_product_prices spp ON p.id = spp.product_id AND spp.store_id::text = $2 AND spp.is_active = true
+		LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.warehouse_id::text = $3
+		WHERE p.id::text = $1
 	`
 	var item model.ProductWithPrice
 	err := r.pool.QueryRow(ctx, query, productID, storeID, warehouseID).Scan(

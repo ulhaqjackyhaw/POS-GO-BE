@@ -29,10 +29,13 @@ func (r *ApprovalRepository) Create(ctx context.Context, a *model.ApprovalReques
 }
 
 func (r *ApprovalRepository) GetByID(ctx context.Context, id string) (*model.ApprovalRequest, error) {
+	if id == "" {
+		return nil, nil
+	}
 	query := `
 		SELECT id, store_id, action_type, status, requested_by, approved_by, payload::text, reason, rejection_reason, created_at, updated_at
 		FROM approval_requests
-		WHERE id = $1
+		WHERE id::text = $1
 	`
 	var a model.ApprovalRequest
 	err := r.pool.QueryRow(ctx, query, id).Scan(
@@ -68,7 +71,7 @@ func (r *ApprovalRepository) List(ctx context.Context, storeID, status string) (
 	query := `
 		SELECT id, store_id, action_type, status, requested_by, approved_by, payload::text, reason, rejection_reason, created_at, updated_at
 		FROM approval_requests
-		WHERE ($1 = '' OR store_id = $1)
+		WHERE ($1 = '' OR store_id::text = $1)
 		  AND ($2 = '' OR status = $2)
 		ORDER BY created_at DESC
 	`

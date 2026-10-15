@@ -34,7 +34,7 @@ func (r *AuditRepository) List(ctx context.Context, storeID string, limit, offse
 	query := `
 		SELECT id, store_id, actor_id, action, entity, entity_id, details::text, COALESCE(ip_address, ''), created_at
 		FROM audit_logs
-		WHERE ($1 = '' OR store_id = $1)
+		WHERE ($1 = '' OR store_id::text = $1)
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
 	`

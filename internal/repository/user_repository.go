@@ -41,11 +41,14 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*m
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
+	if id == "" {
+		return nil, nil
+	}
 	query := `
 		SELECT u.id, u.username, u.email, u.password_hash, u.full_name, u.role_id, r.code, u.is_active, u.created_at, u.updated_at
 		FROM users u
 		JOIN roles r ON u.role_id = r.id
-		WHERE u.id = $1
+		WHERE u.id::text = $1
 	`
 	var user model.User
 	err := r.pool.QueryRow(ctx, query, id).Scan(
@@ -63,11 +66,14 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*model.User, e
 }
 
 func (r *UserRepository) GetUserPermissions(ctx context.Context, roleID string) ([]string, error) {
+	if roleID == "" {
+		return nil, nil
+	}
 	query := `
 		SELECT p.code
 		FROM permissions p
 		JOIN role_permissions rp ON p.id = rp.permission_id
-		WHERE rp.role_id = $1
+		WHERE rp.role_id::text = $1
 	`
 	rows, err := r.pool.Query(ctx, query, roleID)
 	if err != nil {
@@ -87,7 +93,10 @@ func (r *UserRepository) GetUserPermissions(ctx context.Context, roleID string) 
 }
 
 func (r *UserRepository) GetUserStoreIDs(ctx context.Context, userID string) ([]string, error) {
-	query := `SELECT store_id FROM user_stores WHERE user_id = $1`
+	if userID == "" {
+		return nil, nil
+	}
+	query := `SELECT store_id FROM user_stores WHERE user_id::text = $1`
 	rows, err := r.pool.Query(ctx, query, userID)
 	if err != nil {
 		return nil, err

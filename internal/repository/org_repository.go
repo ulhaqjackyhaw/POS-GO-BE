@@ -39,7 +39,10 @@ func (r *OrgRepository) ListStores(ctx context.Context) ([]model.Store, error) {
 }
 
 func (r *OrgRepository) GetStoreByID(ctx context.Context, id string) (*model.Store, error) {
-	query := `SELECT id, code, name, COALESCE(address, ''), is_active, created_at, updated_at FROM stores WHERE id = $1`
+	if id == "" {
+		return nil, nil
+	}
+	query := `SELECT id, code, name, COALESCE(address, ''), is_active, created_at, updated_at FROM stores WHERE id::text = $1`
 	var s model.Store
 	err := r.pool.QueryRow(ctx, query, id).Scan(&s.ID, &s.Code, &s.Name, &s.Address, &s.IsActive, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
@@ -62,7 +65,7 @@ func (r *OrgRepository) CreateStore(ctx context.Context, s *model.Store) error {
 
 // Warehouses
 func (r *OrgRepository) ListWarehouses(ctx context.Context, storeID string) ([]model.Warehouse, error) {
-	query := `SELECT id, store_id, code, name, is_active, created_at, updated_at FROM warehouses WHERE store_id = $1 ORDER BY name ASC`
+	query := `SELECT id, store_id, code, name, is_active, created_at, updated_at FROM warehouses WHERE ($1 = '' OR store_id::text = $1) ORDER BY name ASC`
 	rows, err := r.pool.Query(ctx, query, storeID)
 	if err != nil {
 		return nil, err
@@ -81,7 +84,10 @@ func (r *OrgRepository) ListWarehouses(ctx context.Context, storeID string) ([]m
 }
 
 func (r *OrgRepository) GetWarehouseByID(ctx context.Context, id string) (*model.Warehouse, error) {
-	query := `SELECT id, store_id, code, name, is_active, created_at, updated_at FROM warehouses WHERE id = $1`
+	if id == "" {
+		return nil, nil
+	}
+	query := `SELECT id, store_id, code, name, is_active, created_at, updated_at FROM warehouses WHERE id::text = $1`
 	var w model.Warehouse
 	err := r.pool.QueryRow(ctx, query, id).Scan(&w.ID, &w.StoreID, &w.Code, &w.Name, &w.IsActive, &w.CreatedAt, &w.UpdatedAt)
 	if err != nil {
@@ -95,7 +101,7 @@ func (r *OrgRepository) GetWarehouseByID(ctx context.Context, id string) (*model
 
 // Terminals
 func (r *OrgRepository) ListTerminals(ctx context.Context, storeID string) ([]model.Terminal, error) {
-	query := `SELECT id, store_id, code, name, is_active, created_at, updated_at FROM terminals WHERE store_id = $1 ORDER BY code ASC`
+	query := `SELECT id, store_id, code, name, is_active, created_at, updated_at FROM terminals WHERE ($1 = '' OR store_id::text = $1) ORDER BY code ASC`
 	rows, err := r.pool.Query(ctx, query, storeID)
 	if err != nil {
 		return nil, err
@@ -114,7 +120,10 @@ func (r *OrgRepository) ListTerminals(ctx context.Context, storeID string) ([]mo
 }
 
 func (r *OrgRepository) GetTerminalByID(ctx context.Context, id string) (*model.Terminal, error) {
-	query := `SELECT id, store_id, code, name, is_active, created_at, updated_at FROM terminals WHERE id = $1`
+	if id == "" {
+		return nil, nil
+	}
+	query := `SELECT id, store_id, code, name, is_active, created_at, updated_at FROM terminals WHERE id::text = $1`
 	var t model.Terminal
 	err := r.pool.QueryRow(ctx, query, id).Scan(&t.ID, &t.StoreID, &t.Code, &t.Name, &t.IsActive, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {

@@ -19,6 +19,9 @@ func NewReportHandler(reportService *service.ReportService) *ReportHandler {
 
 func (h *ReportHandler) GetSalesReport(c *fiber.Ctx) error {
 	storeID := c.Query("store_id")
+	if storeID == "" {
+		storeID = c.Get("X-Store-ID")
+	}
 
 	var fromTime, toTime time.Time
 	if fromStr := c.Query("from"); fromStr != "" {
@@ -38,6 +41,9 @@ func (h *ReportHandler) GetSalesReport(c *fiber.Ctx) error {
 
 func (h *ReportHandler) GetTopProducts(c *fiber.Ctx) error {
 	storeID := c.Query("store_id")
+	if storeID == "" {
+		storeID = c.Get("X-Store-ID")
+	}
 	limit, _ := strconv.Atoi(c.Query("limit", "10"))
 
 	var fromTime, toTime time.Time

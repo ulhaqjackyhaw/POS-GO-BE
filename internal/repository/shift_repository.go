@@ -23,12 +23,15 @@ func (r *ShiftRepository) GetActiveShift(ctx context.Context, storeID, terminalI
 		SELECT id, store_id, terminal_id, user_id, starting_cash, ending_cash_actual, ending_cash_expected,
 		       cash_difference, status, opened_at, closed_at, COALESCE(notes, '')
 		FROM cashier_shifts
-		WHERE store_id = $1 AND user_id = $2 AND status = 'OPEN'
+		WHERE ($1 = '' OR store_id::text = $1)
+		  AND ($2 = '' OR user_id::text = $2)
+		  AND ($3 = '' OR terminal_id::text = $3)
+		  AND status = 'OPEN'
 		ORDER BY opened_at DESC
 		LIMIT 1
 	`
 	var s model.CashierShift
-	err := r.pool.QueryRow(ctx, query, storeID, userID).Scan(
+	err := r.pool.QueryRow(ctx, query, storeID, userID, terminalID).Scan(
 		&s.ID, &s.StoreID, &s.TerminalID, &s.UserID, &s.StartingCash,
 		&s.EndingCashActual, &s.EndingCashExpected, &s.CashDifference,
 		&s.Status, &s.OpenedAt, &s.ClosedAt, &s.Notes,
@@ -43,11 +46,14 @@ func (r *ShiftRepository) GetActiveShift(ctx context.Context, storeID, terminalI
 }
 
 func (r *ShiftRepository) GetShiftByID(ctx context.Context, id string) (*model.CashierShift, error) {
+	if id == "" {
+		return nil, nil
+	}
 	query := `
 		SELECT id, store_id, terminal_id, user_id, starting_cash, ending_cash_actual, ending_cash_expected,
 		       cash_difference, status, opened_at, closed_at, COALESCE(notes, '')
 		FROM cashier_shifts
-		WHERE id = $1
+		WHERE id::text = $1
 	`
 	var s model.CashierShift
 	err := r.pool.QueryRow(ctx, query, id).Scan(
@@ -104,11 +110,14 @@ func (r *ShiftRepository) CreateCashMovement(ctx context.Context, m *model.CashM
 }
 
 func (r *ShiftRepository) GetShiftCashTotals(ctx context.Context, shiftID string) (cashSales, cashIn, cashOut int64, err error) {
+	if shiftID == "" {
+		return 0, 0, 0, nil
+	}
 	// Cash sales from transactions completed in this shift
 	salesQuery := `
 		SELECT COALESCE(SUM(total_amount), 0)
 		FROM sales_transactions
-		WHERE shift_id = $1 AND status = 'COMPLETED' AND payment_method = 'CASH'
+		WHERE shift_id::text = $1 AND status = 'COMPLETED' AND payment_method = 'CASH'
 	`
 	err = r.pool.QueryRow(ctx, salesQuery, shiftID).Scan(&cashSales)
 	if err != nil {
@@ -116,13 +125,13 @@ func (r *ShiftRepository) GetShiftCashTotals(ctx context.Context, shiftID string
 	}
 
 	// Movements
-	inQuery := `SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE shift_id = $1 AND movement_type = 'IN'`
+	inQuery := `SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE shift_id::text = $1 AND movement_type = 'IN'`
 	err = r.pool.QueryRow(ctx, inQuery, shiftID).Scan(&cashIn)
 	if err != nil {
 		return 0, 0, 0, err
 	}
 
-	outQuery := `SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE shift_id = $1 AND movement_type = 'OUT'`
+	outQuery := `SELECT COALESCE(SUM(amount), 0) FROM cash_movements WHERE shift_id::text = $1 AND movement_type = 'OUT'`
 	err = r.pool.QueryRow(ctx, outQuery, shiftID).Scan(&cashOut)
 	if err != nil {
 		return 0, 0, 0, err
@@ -132,10 +141,13 @@ func (r *ShiftRepository) GetShiftCashTotals(ctx context.Context, shiftID string
 }
 
 func (r *ShiftRepository) GetShiftMovements(ctx context.Context, shiftID string) ([]model.CashMovement, error) {
+	if shiftID == "" {
+		return nil, nil
+	}
 	query := `
 		SELECT id, shift_id, movement_type, amount, category, COALESCE(reason, ''), created_by, created_at
 		FROM cash_movements
-		WHERE shift_id = $1
+		WHERE shift_id::text = $1
 		ORDER BY created_at ASC
 	`
 	rows, err := r.pool.Query(ctx, query, shiftID)

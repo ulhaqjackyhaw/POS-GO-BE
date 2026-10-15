@@ -46,10 +46,13 @@ func (r *TransferRepository) CreateTransfer(ctx context.Context, tx pgx.Tx, t *m
 }
 
 func (r *TransferRepository) GetTransferByID(ctx context.Context, id string) (*model.StockTransfer, error) {
+	if id == "" {
+		return nil, nil
+	}
 	query := `
 		SELECT id, transfer_number, from_warehouse_id, to_warehouse_id, status, requested_by, COALESCE(notes, ''), created_at, updated_at
 		FROM stock_transfers
-		WHERE id = $1
+		WHERE id::text = $1
 	`
 	var t model.StockTransfer
 	err := r.pool.QueryRow(ctx, query, id).Scan(

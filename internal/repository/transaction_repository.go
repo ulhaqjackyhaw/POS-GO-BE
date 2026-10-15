@@ -56,13 +56,16 @@ func (r *TransactionRepository) GetByIdempotencyKey(ctx context.Context, key str
 }
 
 func (r *TransactionRepository) GetByID(ctx context.Context, id string) (*model.SalesTransaction, error) {
+	if id == "" {
+		return nil, nil
+	}
 	query := `
 		SELECT id, invoice_number, idempotency_key, store_id, terminal_id, shift_id, cashier_id,
 		       COALESCE(customer_name, ''), subtotal, discount_amount, tax_amount, total_amount,
 		       payment_method, paid_amount, change_amount, status, payload_hash, offline_created_at,
 		       created_at, updated_at
 		FROM sales_transactions
-		WHERE id = $1
+		WHERE id::text = $1
 	`
 	var t model.SalesTransaction
 	err := r.pool.QueryRow(ctx, query, id).Scan(
@@ -88,10 +91,13 @@ func (r *TransactionRepository) GetByID(ctx context.Context, id string) (*model.
 }
 
 func (r *TransactionRepository) GetTransactionItems(ctx context.Context, txID string) ([]model.SalesTransactionItem, error) {
+	if txID == "" {
+		return nil, nil
+	}
 	query := `
 		SELECT id, transaction_id, product_id, product_name, unit_price, quantity, subtotal, discount_amount, tax_amount, total, created_at
 		FROM sales_transaction_items
-		WHERE transaction_id = $1
+		WHERE transaction_id::text = $1
 		ORDER BY created_at ASC
 	`
 	rows, err := r.pool.Query(ctx, query, txID)
@@ -167,7 +173,7 @@ func (r *TransactionRepository) List(ctx context.Context, storeID string, limit,
 		       payment_method, paid_amount, change_amount, status, payload_hash, offline_created_at,
 		       created_at, updated_at
 		FROM sales_transactions
-		WHERE ($1 = '' OR store_id = $1)
+		WHERE ($1 = '' OR store_id::text = $1)
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
 	`

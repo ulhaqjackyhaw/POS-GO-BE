@@ -127,6 +127,9 @@ func TestCompletePOSIntegration(t *testing.T) {
 		t.Errorf("Expected IsOverride = true for branch override price")
 	}
 
+	// Ensure stock is fresh and sufficient for repeated test runs
+	_, _ = pool.Exec(ctx, `UPDATE inventory_balances SET quantity = 100 WHERE warehouse_id = $1 AND product_id = $2`, warehouseID, tehMelati.ID)
+
 	// 4. Test Cashier Shift
 	// Close any previously open shift if leftover
 	if prevShift, _ := shiftRepo.GetActiveShift(ctx, storeID, terminalID, cashierID); prevShift != nil {

@@ -25,7 +25,10 @@ func (r *InventoryRepository) GetPool() *pgxpool.Pool {
 
 // GetBalance returns stock for a single product in warehouse
 func (r *InventoryRepository) GetBalance(ctx context.Context, warehouseID, productID string) (int64, error) {
-	query := `SELECT COALESCE(quantity, 0) FROM inventory_balances WHERE warehouse_id = $1 AND product_id = $2`
+	if warehouseID == "" || productID == "" {
+		return 0, nil
+	}
+	query := `SELECT COALESCE(quantity, 0) FROM inventory_balances WHERE warehouse_id::text = $1 AND product_id::text = $2`
 	var qty int64
 	err := r.pool.QueryRow(ctx, query, warehouseID, productID).Scan(&qty)
 	if err != nil {
@@ -114,8 +117,8 @@ func (r *InventoryRepository) ListLedgers(ctx context.Context, warehouseID, prod
 		SELECT id, warehouse_id, product_id, mutation_type, COALESCE(reference_type, ''), COALESCE(reference_id, ''),
 		       quantity_change, balance_after, COALESCE(reason, ''), created_by, created_at
 		FROM inventory_ledgers
-		WHERE ($1 = '' OR warehouse_id = $1)
-		  AND ($2 = '' OR product_id = $2)
+		WHERE ($1 = '' OR warehouse_id::text = $1)
+		  AND ($2 = '' OR product_id::text = $2)
 		ORDER BY created_at DESC
 		LIMIT $3 OFFSET $4
 	`
