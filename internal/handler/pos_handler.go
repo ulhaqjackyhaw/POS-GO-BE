@@ -93,10 +93,16 @@ func (h *POSHandler) VoidTransaction(c *fiber.Ctx) error {
 		return model.ErrValidation("Format request JSON tidak valid")
 	}
 
-	warehouseID := c.Query("warehouse_id")
+	storeID := c.Query("store_id")
+	if storeID == "" {
+		storeID = c.Query("warehouse_id")
+	}
+	if storeID == "" {
+		storeID = c.Get("X-Store-ID")
+	}
 	cashierID, _, _, _ := middleware.GetAuthUser(c)
 
-	if err := h.posService.VoidTransaction(c.Context(), id, req.Reason, cashierID, warehouseID); err != nil {
+	if err := h.posService.VoidTransaction(c.Context(), id, req.Reason, cashierID, storeID); err != nil {
 		return err
 	}
 
@@ -113,10 +119,16 @@ func (h *POSHandler) RefundTransaction(c *fiber.Ctx) error {
 		return model.ErrValidation("Format request JSON tidak valid")
 	}
 
-	warehouseID := c.Query("warehouse_id")
+	storeID := c.Query("store_id")
+	if storeID == "" {
+		storeID = c.Query("warehouse_id")
+	}
+	if storeID == "" {
+		storeID = c.Get("X-Store-ID")
+	}
 	cashierID, _, _, _ := middleware.GetAuthUser(c)
 
-	if err := h.posService.RefundTransaction(c.Context(), id, req.Reason, cashierID, warehouseID); err != nil {
+	if err := h.posService.RefundTransaction(c.Context(), id, req.Reason, cashierID, storeID); err != nil {
 		return err
 	}
 

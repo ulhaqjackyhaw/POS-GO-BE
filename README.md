@@ -270,6 +270,25 @@ X-Store-ID: <store_id>
 
 ---
 
+## 🗄️ Migrasi & Reset Database
+
+Untuk mereset database dari nol (menjalankan ulang semua migrasi SQL dan mengisi kembali data awal *seed master data*):
+
+```bash
+# Masuk ke folder backend
+cd go-backend
+
+# Jalankan CLI re-migrate database
+go run ./cmd/migrate/main.go
+```
+
+Perintah ini akan secara otomatis:
+1. Membersihkan skema publik database (`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`).
+2. Menjalankan seluruh file migrasi SQL secara berurutan (`000001_init_schema.up.sql`, `000002_add_terminal_cashier.up.sql`).
+3. Mengisi kembali data awal (*seeding master roles, permissions, cabang toko, gudang, terminal kasir, akun pengguna, kategori, produk, harga, dan saldo stok*).
+
+---
+
 ## 🧪 Pengujian (Testing)
 
 Proyek ini dilengkapi dengan cakupan pengujian komprehensif mulai dari unit test, contract test, hingga end-to-end integration test terhadap PostgreSQL:

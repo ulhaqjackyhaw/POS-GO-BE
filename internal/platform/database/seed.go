@@ -132,17 +132,6 @@ func SeedInitialData(ctx context.Context, pool *pgxpool.Pool) error {
 		return fmt.Errorf("seeding store failed: %w", err)
 	}
 
-	var warehouseID string
-	err = tx.QueryRow(ctx, `
-		INSERT INTO warehouses (store_id, code, name, is_active)
-		VALUES ($1, 'WH-JKT-01', 'Gudang Utama Jakarta', true)
-		ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
-		RETURNING id
-	`, storeID).Scan(&warehouseID)
-	if err != nil {
-		return fmt.Errorf("seeding warehouse failed: %w", err)
-	}
-
 	var terminalID string
 	err = tx.QueryRow(ctx, `
 		INSERT INTO terminals (store_id, code, name, is_active)
@@ -251,14 +240,14 @@ func SeedInitialData(ctx context.Context, pool *pgxpool.Pool) error {
 			}
 		}
 
-		// Inventory balance
+		// Inventory balance directly per Store
 		var balanceExists bool
-		_ = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM inventory_balances WHERE warehouse_id = $1 AND product_id = $2)`, warehouseID, productID).Scan(&balanceExists)
+		_ = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM inventory_balances WHERE store_id = $1 AND product_id = $2)`, storeID, productID).Scan(&balanceExists)
 		if !balanceExists {
 			_, err = tx.Exec(ctx, `
-				INSERT INTO inventory_balances (warehouse_id, product_id, quantity)
+				INSERT INTO inventory_balances (store_id, product_id, quantity)
 				VALUES ($1, $2, $3)
-			`, warehouseID, productID, sp.initialStock)
+			`, storeID, productID, sp.initialStock)
 			if err != nil {
 				return fmt.Errorf("seeding stock balance failed: %w", err)
 			}
@@ -266,13 +255,13 @@ func SeedInitialData(ctx context.Context, pool *pgxpool.Pool) error {
 			// Ledger entry for initial stock
 			_, err = tx.Exec(ctx, `
 				INSERT INTO inventory_ledgers (
-					warehouse_id, product_id, mutation_type, reference_type, reference_id,
+					store_id, product_id, mutation_type, reference_type, reference_id,
 					quantity_change, balance_after, reason, created_by
 				) VALUES (
 					$1, $2, 'RECEIVE', 'INITIAL_STOCK', 'INIT-001',
 					$3, $3, 'Initial inventory setup', $4
 				)
-			`, warehouseID, productID, sp.initialStock, adminID)
+			`, storeID, productID, sp.initialStock, adminID)
 			if err != nil {
 				return fmt.Errorf("seeding stock ledger failed: %w", err)
 			}

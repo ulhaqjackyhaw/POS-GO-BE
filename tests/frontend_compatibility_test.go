@@ -56,9 +56,17 @@ func TestFrontendCompatibilityEndpoints(t *testing.T) {
 
 	// 2. Test GET /api/v1/inventory/stock
 	stores, _ := orgRepo.ListStores(ctx)
-	storeID := stores[0].ID
-	warehouses, _ := orgRepo.ListWarehouses(ctx, storeID)
-	warehouseID := warehouses[0].ID
+	var storeID string
+	for _, s := range stores {
+		if s.Code == "STORE-JKT-01" {
+			storeID = s.ID
+			break
+		}
+	}
+	if storeID == "" {
+		storeID = stores[0].ID
+	}
+	warehouseID := storeID
 
 	stockList, err := invService.ListStock(ctx, warehouseID)
 	if err != nil || len(stockList) == 0 {

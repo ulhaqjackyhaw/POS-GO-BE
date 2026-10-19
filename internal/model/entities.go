@@ -102,7 +102,8 @@ type ProductWithPrice struct {
 	EffectivePrice int64  `json:"effective_price"`
 	IsOverride     bool   `json:"is_override"`
 	CurrentStock   int64  `json:"current_stock"`
-	WarehouseID    string `json:"warehouse_id"`
+	StoreID        string `json:"store_id"`
+	WarehouseID    string `json:"warehouse_id,omitempty"`
 }
 
 type StoreProductPrice struct {
@@ -118,7 +119,9 @@ type StoreProductPrice struct {
 // Inventory
 type InventoryBalance struct {
 	ID          string    `json:"id"`
-	WarehouseID string    `json:"warehouse_id"`
+	StoreID     string    `json:"store_id"`
+	StoreName   string    `json:"store_name,omitempty"`
+	WarehouseID string    `json:"warehouse_id,omitempty"`
 	ProductID   string    `json:"product_id"`
 	Quantity    int64     `json:"quantity"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -126,7 +129,8 @@ type InventoryBalance struct {
 
 type InventoryLedger struct {
 	ID             string    `json:"id"`
-	WarehouseID    string    `json:"warehouse_id"`
+	StoreID        string    `json:"store_id"`
+	WarehouseID    string    `json:"warehouse_id,omitempty"`
 	ProductID      string    `json:"product_id"`
 	MutationType   string    `json:"mutation_type"` // RECEIVE, SALE, ADJUSTMENT, TRANSFER_OUT, TRANSFER_IN, VOID, REFUND
 	ReferenceType  string    `json:"reference_type"`
@@ -223,8 +227,10 @@ type ApprovalRequest struct {
 type StockTransfer struct {
 	ID              string              `json:"id"`
 	TransferNumber  string              `json:"transfer_number"`
-	FromWarehouseID string              `json:"from_warehouse_id"`
-	ToWarehouseID   string              `json:"to_warehouse_id"`
+	FromStoreID     string              `json:"from_store_id"`
+	ToStoreID       string              `json:"to_store_id"`
+	FromWarehouseID string              `json:"from_warehouse_id,omitempty"`
+	ToWarehouseID   string              `json:"to_warehouse_id,omitempty"`
 	Status          string              `json:"status"` // DRAFT, SHIPPED, RECEIVED, CANCELLED
 	RequestedBy     string              `json:"requested_by"`
 	Notes           string              `json:"notes"`

@@ -71,23 +71,7 @@ func (r *OrgRepository) CreateStore(ctx context.Context, s *model.Store) error {
 		return err
 	}
 
-	// 1. Otomatis buat Gudang Utama default untuk cabang ini
-	whCode := "WH-" + s.Code
-	if strings.HasPrefix(s.Code, "STORE-") {
-		whCode = "WH-" + strings.TrimPrefix(s.Code, "STORE-")
-	}
-	whName := "Gudang Utama " + s.Name
-
-	queryWarehouse := `
-		INSERT INTO warehouses (store_id, code, name, is_active)
-		VALUES ($1, $2, $3, true)
-		ON CONFLICT (code) DO NOTHING
-	`
-	if _, err := tx.Exec(ctx, queryWarehouse, s.ID, whCode, whName); err != nil {
-		return err
-	}
-
-	// 2. Otomatis buat Terminal Kasir 1 default untuk cabang ini
+	// Otomatis buat Terminal Kasir 1 default untuk cabang ini
 	termCode := "TERM-01-" + s.Code
 	if strings.HasPrefix(s.Code, "STORE-") {
 		termCode = "TERM-01-" + strings.TrimPrefix(s.Code, "STORE-")
@@ -106,95 +90,25 @@ func (r *OrgRepository) CreateStore(ctx context.Context, s *model.Store) error {
 	return tx.Commit(ctx)
 }
 
-// Warehouses
+// Warehouses (Deprecated - stock is now directly managed per Store)
 func (r *OrgRepository) ListWarehouses(ctx context.Context, storeID string) ([]model.Warehouse, error) {
-	query := `
-		SELECT 
-			w.id, w.store_id, COALESCE(s.name, ''), COALESCE(s.code, ''),
-			w.code, w.name, w.is_active, w.created_at, w.updated_at 
-		FROM warehouses w
-		LEFT JOIN stores s ON w.store_id = s.id
-		WHERE ($1 = '' OR w.store_id::text = $1) 
-		ORDER BY w.name ASC
-	`
-	rows, err := r.pool.Query(ctx, query, storeID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var warehouses []model.Warehouse
-	for rows.Next() {
-		var w model.Warehouse
-		if err := rows.Scan(&w.ID, &w.StoreID, &w.StoreName, &w.StoreCode, &w.Code, &w.Name, &w.IsActive, &w.CreatedAt, &w.UpdatedAt); err != nil {
-			return nil, err
-		}
-		warehouses = append(warehouses, w)
-	}
-	return warehouses, nil
+	return []model.Warehouse{}, nil
 }
 
 func (r *OrgRepository) GetWarehouseByID(ctx context.Context, id string) (*model.Warehouse, error) {
-	if id == "" {
-		return nil, nil
-	}
-	query := `
-		SELECT 
-			w.id, w.store_id, COALESCE(s.name, ''), COALESCE(s.code, ''),
-			w.code, w.name, w.is_active, w.created_at, w.updated_at 
-		FROM warehouses w
-		LEFT JOIN stores s ON w.store_id = s.id
-		WHERE w.id::text = $1
-	`
-	var w model.Warehouse
-	err := r.pool.QueryRow(ctx, query, id).Scan(&w.ID, &w.StoreID, &w.StoreName, &w.StoreCode, &w.Code, &w.Name, &w.IsActive, &w.CreatedAt, &w.UpdatedAt)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &w, nil
+	return nil, nil
 }
 
 func (r *OrgRepository) CreateWarehouse(ctx context.Context, w *model.Warehouse) error {
-	query := `
-		INSERT INTO warehouses (store_id, code, name, is_active)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at, updated_at
-	`
-	return r.pool.QueryRow(ctx, query, w.StoreID, w.Code, w.Name, w.IsActive).Scan(&w.ID, &w.CreatedAt, &w.UpdatedAt)
+	w.ID = "wh-deprecated"
+	return nil
 }
 
 func (r *OrgRepository) UpdateWarehouse(ctx context.Context, w *model.Warehouse) error {
-	query := `
-		UPDATE warehouses
-		SET store_id = $1, code = $2, name = $3, is_active = $4, updated_at = NOW()
-		WHERE id::text = $5
-		RETURNING updated_at
-	`
-	return r.pool.QueryRow(ctx, query, w.StoreID, w.Code, w.Name, w.IsActive, w.ID).Scan(&w.UpdatedAt)
+	return nil
 }
 
 func (r *OrgRepository) DeleteWarehouse(ctx context.Context, id string) error {
-	var count int
-	_ = r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM inventory_balances WHERE warehouse_id::text = $1 AND quantity > 0`, id).Scan(&count)
-	if count > 0 {
-		return errors.New("gudang tidak dapat dihapus karena masih memiliki saldo stok")
-	}
-
-	res, err := r.pool.Exec(ctx, `DELETE FROM warehouses WHERE id::text = $1`, id)
-	if err != nil {
-		// If foreign key constraint prevents hard delete, soft-deactivate instead
-		_, err2 := r.pool.Exec(ctx, `UPDATE warehouses SET is_active = false, updated_at = NOW() WHERE id::text = $1`, id)
-		if err2 != nil {
-			return err
-		}
-		return nil
-	}
-	if res.RowsAffected() == 0 {
-		return pgx.ErrNoRows
-	}
 	return nil
 }
 

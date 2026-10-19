@@ -136,4 +136,5 @@ func SetupRoutes(cfg RouterConfig) {
 	reports := protected.Group("/reports", middleware.RequirePermission("report:read"))
 	reports.Get("/sales", cfg.ReportH.GetSalesReport)
 	reports.Get("/top-products", cfg.ReportH.GetTopProducts)
+	reports.Get("/terminals", cfg.ReportH.GetTerminalSalesReport)
 }

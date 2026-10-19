@@ -18,23 +18,28 @@ func NewCatalogRepository(pool *pgxpool.Pool) *CatalogRepository {
 	return &CatalogRepository{pool: pool}
 }
 
-// ListProducts returns products with effective prices for a specific store and stock in warehouse
+// ListProducts returns products with effective prices and direct store stock
 func (r *CatalogRepository) ListProducts(ctx context.Context, storeID, warehouseID, search string) ([]model.ProductWithPrice, error) {
+	effectiveStoreID := storeID
+	if effectiveStoreID == "" && warehouseID != "" {
+		effectiveStoreID = warehouseID
+	}
+
 	query := `
 		SELECT 
 			p.id, p.sku, COALESCE(p.barcode, ''), p.name, p.category_id, p.unit, p.base_price, p.is_active, p.created_at, p.updated_at,
 			COALESCE(spp.price, p.base_price) AS effective_price,
 			(spp.price IS NOT NULL) AS is_override,
 			COALESCE(ib.quantity, 0) AS current_stock,
-			$2::text AS warehouse_id
+			$1::text AS store_id
 		FROM products p
 		LEFT JOIN store_product_prices spp ON p.id = spp.product_id AND spp.store_id::text = $1 AND spp.is_active = true
-		LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.warehouse_id::text = $2
+		LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.store_id::text = $1
 		WHERE p.is_active = true
-		  AND ($3 = '' OR p.name ILIKE '%' || $3 || '%' OR p.sku ILIKE '%' || $3 || '%' OR p.barcode ILIKE '%' || $3 || '%')
+		  AND ($2 = '' OR p.name ILIKE '%' || $2 || '%' OR p.sku ILIKE '%' || $2 || '%' OR p.barcode ILIKE '%' || $2 || '%')
 		ORDER BY p.name ASC
 	`
-	rows, err := r.pool.Query(ctx, query, storeID, warehouseID, search)
+	rows, err := r.pool.Query(ctx, query, effectiveStoreID, search)
 	if err != nil {
 		return nil, err
 	}
@@ -46,11 +51,12 @@ func (r *CatalogRepository) ListProducts(ctx context.Context, storeID, warehouse
 		err := rows.Scan(
 			&item.ID, &item.SKU, &item.Barcode, &item.Name, &item.CategoryID,
 			&item.Unit, &item.BasePrice, &item.IsActive, &item.CreatedAt, &item.UpdatedAt,
-			&item.EffectivePrice, &item.IsOverride, &item.CurrentStock, &item.WarehouseID,
+			&item.EffectivePrice, &item.IsOverride, &item.CurrentStock, &item.StoreID,
 		)
 		if err != nil {
 			return nil, err
 		}
+		item.WarehouseID = item.StoreID
 		result = append(result, item)
 	}
 	return result, nil
@@ -83,23 +89,28 @@ func (r *CatalogRepository) GetProductWithEffectivePrice(ctx context.Context, pr
 	if productID == "" {
 		return nil, nil
 	}
+	effectiveStoreID := storeID
+	if effectiveStoreID == "" && warehouseID != "" {
+		effectiveStoreID = warehouseID
+	}
+
 	query := `
 		SELECT 
 			p.id, p.sku, COALESCE(p.barcode, ''), p.name, p.category_id, p.unit, p.base_price, p.is_active, p.created_at, p.updated_at,
 			COALESCE(spp.price, p.base_price) AS effective_price,
 			(spp.price IS NOT NULL) AS is_override,
 			COALESCE(ib.quantity, 0) AS current_stock,
-			$3::text AS warehouse_id
+			$2::text AS store_id
 		FROM products p
 		LEFT JOIN store_product_prices spp ON p.id = spp.product_id AND spp.store_id::text = $2 AND spp.is_active = true
-		LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.warehouse_id::text = $3
+		LEFT JOIN inventory_balances ib ON p.id = ib.product_id AND ib.store_id::text = $2
 		WHERE p.id::text = $1
 	`
 	var item model.ProductWithPrice
-	err := r.pool.QueryRow(ctx, query, productID, storeID, warehouseID).Scan(
+	err := r.pool.QueryRow(ctx, query, productID, effectiveStoreID).Scan(
 		&item.ID, &item.SKU, &item.Barcode, &item.Name, &item.CategoryID,
 		&item.Unit, &item.BasePrice, &item.IsActive, &item.CreatedAt, &item.UpdatedAt,
-		&item.EffectivePrice, &item.IsOverride, &item.CurrentStock, &item.WarehouseID,
+		&item.EffectivePrice, &item.IsOverride, &item.CurrentStock, &item.StoreID,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -107,6 +118,7 @@ func (r *CatalogRepository) GetProductWithEffectivePrice(ctx context.Context, pr
 		}
 		return nil, err
 	}
+	item.WarehouseID = item.StoreID
 	return &item, nil
 }
 
@@ -116,18 +128,31 @@ func (r *CatalogRepository) CreateProduct(ctx context.Context, p *model.Product)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, created_at, updated_at
 	`
-	return r.pool.QueryRow(ctx, query, p.SKU, p.Barcode, p.Name, p.CategoryID, p.Unit, p.BasePrice, p.IsActive).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
+	return r.pool.QueryRow(ctx, query, p.SKU, p.Barcode, p.Name, p.CategoryID, p.Unit, p.BasePrice, p.IsActive).
+		Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 }
 
-func (r *CatalogRepository) SetStorePrice(ctx context.Context, storeID, productID string, price int64) error {
+func (r *CatalogRepository) UpdateProduct(ctx context.Context, p *model.Product) error {
 	query := `
-		INSERT INTO store_product_prices (store_id, product_id, price, is_active, updated_at)
-		VALUES ($1, $2, $3, true, NOW())
-		ON CONFLICT (store_id, product_id)
-		DO UPDATE SET price = EXCLUDED.price, is_active = true, updated_at = NOW()
+		UPDATE products
+		SET sku = $1, barcode = $2, name = $3, category_id = $4, unit = $5, base_price = $6, is_active = $7, updated_at = NOW()
+		WHERE id::text = $8
+		RETURNING updated_at
 	`
-	_, err := r.pool.Exec(ctx, query, storeID, productID, price)
-	return err
+	return r.pool.QueryRow(ctx, query, p.SKU, p.Barcode, p.Name, p.CategoryID, p.Unit, p.BasePrice, p.IsActive, p.ID).
+		Scan(&p.UpdatedAt)
+}
+
+func (r *CatalogRepository) SetStorePrice(ctx context.Context, spp *model.StoreProductPrice) error {
+	query := `
+		INSERT INTO store_product_prices (store_id, product_id, price, is_active)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (store_id, product_id)
+		DO UPDATE SET price = EXCLUDED.price, is_active = EXCLUDED.is_active, updated_at = NOW()
+		RETURNING id, created_at, updated_at
+	`
+	return r.pool.QueryRow(ctx, query, spp.StoreID, spp.ProductID, spp.Price, spp.IsActive).
+		Scan(&spp.ID, &spp.CreatedAt, &spp.UpdatedAt)
 }
 
 func (r *CatalogRepository) ListCategories(ctx context.Context) ([]model.Category, error) {
