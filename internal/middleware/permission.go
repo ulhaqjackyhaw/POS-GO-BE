@@ -24,3 +24,27 @@ func RequirePermission(permissionCode string) fiber.Handler {
 		return model.ErrForbidden("Anda tidak memiliki izin yang diperlukan: " + permissionCode)
 	}
 }
+
+func RequireRoleOrPermission(allowedRoles []string, permissionCode string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		_, roleCode, _, permissions := GetAuthUser(c)
+
+		if roleCode == "owner" {
+			return c.Next()
+		}
+
+		for _, r := range allowedRoles {
+			if r == roleCode {
+				return c.Next()
+			}
+		}
+
+		for _, p := range permissions {
+			if p == permissionCode {
+				return c.Next()
+			}
+		}
+
+		return model.ErrForbidden("Anda tidak memiliki izin yang diperlukan")
+	}
+}

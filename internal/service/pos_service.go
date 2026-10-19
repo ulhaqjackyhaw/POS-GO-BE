@@ -78,7 +78,6 @@ func (s *POSService) ComputePayloadHash(req model.CheckoutRequest) string {
 		Items         []itemPayload `json:"items"`
 	}{
 		StoreID:       req.StoreID,
-		WarehouseID:   req.WarehouseID,
 		PaidAmount:    req.PaidAmount,
 		PaymentMethod: req.PaymentMethod,
 		Items:         items,
@@ -106,7 +105,7 @@ func (s *POSService) GenerateQuote(ctx context.Context, req model.QuoteRequest, 
 			return nil, model.ErrValidation("Kuantitas produk harus lebih dari 0")
 		}
 
-		productWithPrice, err := s.catalogRepo.GetProductWithEffectivePrice(ctx, it.ProductID, req.StoreID, warehouseID)
+		productWithPrice, err := s.catalogRepo.GetProductWithEffectivePrice(ctx, it.ProductID, req.StoreID, "")
 		if err != nil || productWithPrice == nil {
 			return nil, model.ErrNotFound(fmt.Sprintf("Produk dengan ID %s tidak ditemukan", it.ProductID))
 		}
@@ -162,8 +161,11 @@ func (s *POSService) CheckoutOnline(ctx context.Context, req model.CheckoutReque
 	if req.IdempotencyKey == "" {
 		return nil, model.ErrValidation("Idempotency key wajib disertakan untuk checkout")
 	}
-	if req.StoreID == "" || req.WarehouseID == "" || len(req.Items) == 0 {
-		return nil, model.ErrValidation("StoreID, WarehouseID, dan items tidak boleh kosong")
+	if req.StoreID == "" && req.WarehouseID != "" {
+		req.StoreID = req.WarehouseID
+	}
+	if req.StoreID == "" || len(req.Items) == 0 {
+		return nil, model.ErrValidation("StoreID dan items tidak boleh kosong")
 	}
 
 	currentHash := s.ComputePayloadHash(req)
@@ -227,7 +229,7 @@ func (s *POSService) CheckoutOnline(ctx context.Context, req model.CheckoutReque
 	defer dbTx.Rollback(ctx)
 
 	// 4. Deadlock-free row-level locking on inventory balances in deterministic sorted order
-	balances, err := s.invRepo.LockBalancesForUpdate(ctx, dbTx, req.WarehouseID, productIDs)
+	balances, err := s.invRepo.LockBalancesForUpdate(ctx, dbTx, req.StoreID, productIDs)
 	if err != nil {
 		return nil, model.ErrInternal("Gagal mengunci stok inventori")
 	}
@@ -242,7 +244,7 @@ func (s *POSService) CheckoutOnline(ctx context.Context, req model.CheckoutReque
 		reqQty := it.Quantity
 		currentStock := balances[it.ProductID]
 
-		productWithPrice, err := s.catalogRepo.GetProductWithEffectivePrice(ctx, it.ProductID, req.StoreID, req.WarehouseID)
+		productWithPrice, err := s.catalogRepo.GetProductWithEffectivePrice(ctx, it.ProductID, req.StoreID, "")
 		if err != nil || productWithPrice == nil {
 			return nil, model.ErrNotFound(fmt.Sprintf("Produk %s tidak ditemukan", it.ProductID))
 		}
@@ -282,11 +284,16 @@ func (s *POSService) CheckoutOnline(ctx context.Context, req model.CheckoutReque
 	totalTax := s.CalculateTaxInclusive(grandTotal)
 
 	// 7. Deduct stock atomically and append immutable ledger entries
-	invoiceNum := fmt.Sprintf("INV-%s-%d", time.Now().Format("20060102"), time.Now().UnixNano()%1000000)
+	termCode := "POS"
+	if req.TerminalID != nil && *req.TerminalID != "" {
+		_ = s.txRepo.GetPool().QueryRow(ctx, `SELECT code FROM terminals WHERE id = $1`, *req.TerminalID).Scan(&termCode)
+	}
+	seq := (time.Now().UnixNano() / 1000000) % 10000
+	invoiceNum := fmt.Sprintf("%s/%s/%04d", termCode, time.Now().Format("20060102"), seq)
 
 	for pid, qty := range qtyMap {
 		_, err := s.invRepo.MutateStock(
-			ctx, dbTx, req.WarehouseID, pid, -qty,
+			ctx, dbTx, req.StoreID, pid, -qty,
 			"SALE", "TRANSACTION", invoiceNum, "Penjualan kasir online", &cashierID,
 		)
 		if err != nil {
@@ -353,7 +360,7 @@ func (s *POSService) CheckoutOnline(ctx context.Context, req model.CheckoutReque
 }
 
 // VoidTransaction compensates a transaction, reverses stock in ledger, and keeps immutable history
-func (s *POSService) VoidTransaction(ctx context.Context, txID, reason, actorID string, warehouseID string) error {
+func (s *POSService) VoidTransaction(ctx context.Context, txID, reason, actorID string, storeID string) error {
 	if reason == "" {
 		return model.ErrValidation("Alasan pembatalan (void) wajib diisi")
 	}
@@ -365,6 +372,11 @@ func (s *POSService) VoidTransaction(ctx context.Context, txID, reason, actorID 
 
 	if txRecord.Status != "COMPLETED" {
 		return model.ErrValidation(fmt.Sprintf("Transaksi tidak dapat di-void karena berstatus '%s'", txRecord.Status))
+	}
+
+	stockLocation := storeID
+	if stockLocation == "" {
+		stockLocation = txRecord.StoreID
 	}
 
 	pool := s.invRepo.GetPool()
@@ -382,7 +394,7 @@ func (s *POSService) VoidTransaction(ctx context.Context, txID, reason, actorID 
 	// Restore stock via compensating ledger mutation VOID
 	for _, it := range txRecord.Items {
 		_, err := s.invRepo.MutateStock(
-			ctx, dbTx, warehouseID, it.ProductID, it.Quantity,
+			ctx, dbTx, stockLocation, it.ProductID, it.Quantity,
 			"VOID", "TRANSACTION", txRecord.InvoiceNumber, "Kompensasi pembatalan: "+reason, &actorID,
 		)
 		if err != nil {
@@ -408,7 +420,7 @@ func (s *POSService) VoidTransaction(ctx context.Context, txID, reason, actorID 
 }
 
 // RefundTransaction compensates a transaction with refund status
-func (s *POSService) RefundTransaction(ctx context.Context, txID, reason, actorID string, warehouseID string) error {
+func (s *POSService) RefundTransaction(ctx context.Context, txID, reason, actorID string, storeID string) error {
 	if reason == "" {
 		return model.ErrValidation("Alasan refund wajib diisi")
 	}
@@ -420,6 +432,11 @@ func (s *POSService) RefundTransaction(ctx context.Context, txID, reason, actorI
 
 	if txRecord.Status != "COMPLETED" {
 		return model.ErrValidation(fmt.Sprintf("Transaksi tidak dapat di-refund karena berstatus '%s'", txRecord.Status))
+	}
+
+	stockLocation := storeID
+	if stockLocation == "" {
+		stockLocation = txRecord.StoreID
 	}
 
 	pool := s.invRepo.GetPool()
@@ -435,7 +452,7 @@ func (s *POSService) RefundTransaction(ctx context.Context, txID, reason, actorI
 
 	for _, it := range txRecord.Items {
 		_, err := s.invRepo.MutateStock(
-			ctx, dbTx, warehouseID, it.ProductID, it.Quantity,
+			ctx, dbTx, stockLocation, it.ProductID, it.Quantity,
 			"REFUND", "TRANSACTION", txRecord.InvoiceNumber, "Kompensasi refund: "+reason, &actorID,
 		)
 		if err != nil {

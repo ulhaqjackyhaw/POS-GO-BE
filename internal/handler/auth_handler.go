@@ -33,10 +33,12 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 func (h *AuthHandler) Me(c *fiber.Ctx) error {
 	userID, roleCode, storeIDs, permissions := middleware.GetAuthUser(c)
 	username, _ := c.Locals(middleware.ContextUsername).(string)
+	fullName, _ := c.Locals(middleware.ContextFullName).(string)
 
 	return c.JSON(model.UserInfo{
 		ID:          userID,
 		Username:    username,
+		FullName:    fullName,
 		Role:        roleCode,
 		Permissions: permissions,
 		StoreIDs:    storeIDs,

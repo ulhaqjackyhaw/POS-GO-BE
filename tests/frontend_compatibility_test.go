@@ -56,9 +56,17 @@ func TestFrontendCompatibilityEndpoints(t *testing.T) {
 
 	// 2. Test GET /api/v1/inventory/stock
 	stores, _ := orgRepo.ListStores(ctx)
-	storeID := stores[0].ID
-	warehouses, _ := orgRepo.ListWarehouses(ctx, storeID)
-	warehouseID := warehouses[0].ID
+	var storeID string
+	for _, s := range stores {
+		if s.Code == "STORE-JKT-01" {
+			storeID = s.ID
+			break
+		}
+	}
+	if storeID == "" {
+		storeID = stores[0].ID
+	}
+	warehouseID := storeID
 
 	stockList, err := invService.ListStock(ctx, warehouseID)
 	if err != nil || len(stockList) == 0 {
@@ -72,12 +80,12 @@ func TestFrontendCompatibilityEndpoints(t *testing.T) {
 	terminals, _ := orgRepo.ListTerminals(ctx, storeID)
 	terminalID := terminals[0].ID
 
-	// Close previous shift if any
-	if prev, _ := shiftRepo.GetActiveShift(ctx, storeID, terminalID, cashierID); prev != nil {
+	// Close previous shift on terminal if any
+	if prev, _ := shiftRepo.GetActiveShift(ctx, storeID, terminalID, ""); prev != nil {
 		_, _ = shiftService.CloseShift(ctx, prev.ID, model.CloseShiftRequest{
 			ActualCashMinor:   prev.StartingCash,
 			DiscrepancyReason: "Reset",
-		}, cashierID)
+		}, prev.UserID)
 	}
 
 	openReq := model.OpenShiftRequest{
@@ -91,6 +99,15 @@ func TestFrontendCompatibilityEndpoints(t *testing.T) {
 	}
 	if shift.StartingCash != 150000 {
 		t.Errorf("Expected starting cash 150000, got %d", shift.StartingCash)
+	}
+
+	// Test GetActiveShift with empty store_id and terminal_id (Resolves SQLSTATE 22P02: invalid input syntax for type uuid: "")
+	activeShiftEmpty, err := shiftService.GetActiveShift(ctx, "", "", cashierID)
+	if err != nil {
+		t.Fatalf("GetActiveShift with empty store/terminal failed: %v", err)
+	}
+	if activeShiftEmpty == nil || activeShiftEmpty.ID != shift.ID {
+		t.Fatalf("Expected active shift ID %s, got %+v", shift.ID, activeShiftEmpty)
 	}
 
 	// 4. Test Cash Movement with Frontend PRD format: type="cash_in", amount_minor=25000
@@ -126,6 +143,26 @@ func TestFrontendCompatibilityEndpoints(t *testing.T) {
 
 	// 6. Test Checkout with Frontend PRD nested Payment format: payment: { method: "cash", received_minor: 200000 }
 	products, _ := catalogService.ListProducts(ctx, storeID, warehouseID, "")
+	if len(products) == 0 {
+		t.Fatalf("No products found for testing")
+	}
+	var testProductID string
+	for _, p := range products {
+		if p.CurrentStock > 0 {
+			testProductID = p.ID
+			break
+		}
+	}
+	if testProductID == "" {
+		testProductID = products[0].ID
+		_ = invService.AdjustStock(ctx, model.StockAdjustmentRequest{
+			WarehouseID: warehouseID,
+			ProductID:   testProductID,
+			Quantity:    10,
+			Reason:      "Test Seed",
+		}, cashierID)
+	}
+
 	checkoutReq := model.CheckoutRequest{
 		IdempotencyKey: fmt.Sprintf("IDEM-FRONTEND-%d", time.Now().UnixNano()),
 		StoreID:        storeID,
@@ -136,7 +173,7 @@ func TestFrontendCompatibilityEndpoints(t *testing.T) {
 			ReceivedMinor: 200000,
 		},
 		Items: []model.CheckoutItemRequest{
-			{ProductID: products[0].ID, Quantity: 1, DiscountAmount: 0},
+			{ProductID: testProductID, Quantity: 1, DiscountAmount: 0},
 		},
 	}
 	checkoutResp, err := posService.CheckoutOnline(ctx, checkoutReq, cashierID)
@@ -179,5 +216,45 @@ func TestFrontendCompatibilityEndpoints(t *testing.T) {
 	}
 	if closedShift.Notes != "Sesuai hitungan fisik kasir" {
 		t.Errorf("Expected notes to take discrepancy_reason, got '%s'", closedShift.Notes)
+	}
+
+	// 9. Test Reports (Resolves SQLSTATE 42883: uuid = text)
+	reportRepo := repository.NewReportRepository(pool)
+	reportService := service.NewReportService(reportRepo)
+
+	// Test with empty store_id
+	salesEmptyStore, err := reportService.GetSalesReport(ctx, "", time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("GetSalesReport with empty storeID failed: %v", err)
+	}
+	if salesEmptyStore == nil {
+		t.Errorf("Expected salesEmptyStore to not be nil")
+	}
+
+	// Test with specific store_id
+	salesWithStore, err := reportService.GetSalesReport(ctx, storeID, time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("GetSalesReport with storeID failed: %v", err)
+	}
+	if salesWithStore == nil {
+		t.Errorf("Expected salesWithStore to not be nil")
+	}
+
+	// Test top products with empty store_id
+	topEmptyStore, err := reportService.GetTopProducts(ctx, "", time.Time{}, time.Time{}, 10)
+	if err != nil {
+		t.Fatalf("GetTopProducts with empty storeID failed: %v", err)
+	}
+	if topEmptyStore == nil {
+		t.Errorf("Expected topEmptyStore to not be nil")
+	}
+
+	// Test top products with specific store_id
+	topWithStore, err := reportService.GetTopProducts(ctx, storeID, time.Time{}, time.Time{}, 10)
+	if err != nil {
+		t.Fatalf("GetTopProducts with storeID failed: %v", err)
+	}
+	if topWithStore == nil {
+		t.Errorf("Expected topWithStore to not be nil")
 	}
 }

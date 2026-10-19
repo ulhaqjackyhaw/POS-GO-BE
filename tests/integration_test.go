@@ -94,18 +94,22 @@ func TestCompletePOSIntegration(t *testing.T) {
 	}
 	managerID := managerLogin.User.ID
 
-	// 2. Fetch Store, Warehouse, Terminal
+	// 2. Fetch Store, Terminal
 	stores, err := orgRepo.ListStores(ctx)
 	if err != nil || len(stores) == 0 {
 		t.Fatalf("No stores found: %v", err)
 	}
-	storeID := stores[0].ID
-
-	warehouses, err := orgRepo.ListWarehouses(ctx, storeID)
-	if err != nil || len(warehouses) == 0 {
-		t.Fatalf("No warehouses found: %v", err)
+	var storeID string
+	for _, s := range stores {
+		if s.Code == "STORE-JKT-01" {
+			storeID = s.ID
+			break
+		}
 	}
-	warehouseID := warehouses[0].ID
+	if storeID == "" {
+		storeID = stores[0].ID
+	}
+	warehouseID := storeID // Stock is managed directly per Store
 
 	terminals, err := orgRepo.ListTerminals(ctx, storeID)
 	if err != nil || len(terminals) == 0 {
@@ -127,13 +131,16 @@ func TestCompletePOSIntegration(t *testing.T) {
 		t.Errorf("Expected IsOverride = true for branch override price")
 	}
 
+	// Ensure stock is fresh and sufficient for repeated test runs
+	_, _ = pool.Exec(ctx, `UPDATE inventory_balances SET quantity = 100 WHERE store_id = $1 AND product_id = $2`, storeID, tehMelati.ID)
+
 	// 4. Test Cashier Shift
-	// Close any previously open shift if leftover
-	if prevShift, _ := shiftRepo.GetActiveShift(ctx, storeID, terminalID, cashierID); prevShift != nil {
+	// Close any previously open shift on terminal if leftover
+	if prevShift, _ := shiftRepo.GetActiveShift(ctx, storeID, terminalID, ""); prevShift != nil {
 		_, _ = shiftService.CloseShift(ctx, prevShift.ID, model.CloseShiftRequest{
 			EndingCashActual: prevShift.StartingCash,
 			Notes:            "Cleaning previous test shift",
-		}, cashierID)
+		}, prevShift.UserID)
 	}
 
 	shift, err := shiftService.OpenShift(ctx, model.OpenShiftRequest{

@@ -24,6 +24,13 @@ func (h *InventoryHandler) AdjustStock(c *fiber.Ctx) error {
 		return model.ErrValidation("Format request JSON tidak valid")
 	}
 
+	if req.StoreID == "" {
+		req.StoreID = c.Query("store_id")
+	}
+	if req.StoreID == "" {
+		req.StoreID = c.Get("X-Store-ID")
+	}
+
 	userID, _, _, _ := middleware.GetAuthUser(c)
 	if err := h.invService.AdjustStock(c.Context(), req, userID); err != nil {
 		return err
@@ -35,12 +42,18 @@ func (h *InventoryHandler) AdjustStock(c *fiber.Ctx) error {
 }
 
 func (h *InventoryHandler) ListLedgers(c *fiber.Ctx) error {
-	warehouseID := c.Query("warehouse_id")
+	storeID := c.Query("store_id")
+	if storeID == "" {
+		storeID = c.Query("warehouse_id")
+	}
+	if storeID == "" {
+		storeID = c.Get("X-Store-ID")
+	}
 	productID := c.Query("product_id")
 	limit, _ := strconv.Atoi(c.Query("limit", "50"))
 	offset, _ := strconv.Atoi(c.Query("offset", "0"))
 
-	ledgers, err := h.invService.ListLedgers(c.Context(), warehouseID, productID, limit, offset)
+	ledgers, err := h.invService.ListLedgers(c.Context(), storeID, productID, limit, offset)
 	if err != nil {
 		return err
 	}
@@ -48,8 +61,14 @@ func (h *InventoryHandler) ListLedgers(c *fiber.Ctx) error {
 }
 
 func (h *InventoryHandler) ListStock(c *fiber.Ctx) error {
-	warehouseID := c.Query("warehouse_id")
-	stock, err := h.invService.ListStock(c.Context(), warehouseID)
+	storeID := c.Query("store_id")
+	if storeID == "" {
+		storeID = c.Query("warehouse_id")
+	}
+	if storeID == "" {
+		storeID = c.Get("X-Store-ID")
+	}
+	stock, err := h.invService.ListStock(c.Context(), storeID)
 	if err != nil {
 		return err
 	}

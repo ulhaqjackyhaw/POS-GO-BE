@@ -13,6 +13,7 @@ const (
 	ContextUserID      = "user_id"
 	ContextUsername    = "username"
 	ContextRoleCode    = "role_code"
+	ContextFullName    = "full_name"
 	ContextPermissions = "permissions"
 	ContextStoreIDs    = "store_ids"
 )
@@ -20,6 +21,7 @@ const (
 type JWTClaims struct {
 	UserID      string   `json:"user_id"`
 	Username    string   `json:"username"`
+	FullName    string   `json:"full_name"`
 	RoleCode    string   `json:"role_code"`
 	Permissions []string `json:"permissions"`
 	StoreIDs    []string `json:"store_ids"`
@@ -54,6 +56,7 @@ func AuthRequired(jwtSecret string) fiber.Handler {
 
 		c.Locals(ContextUserID, claims.UserID)
 		c.Locals(ContextUsername, claims.Username)
+		c.Locals(ContextFullName, claims.FullName)
 		c.Locals(ContextRoleCode, claims.RoleCode)
 		c.Locals(ContextPermissions, claims.Permissions)
 		c.Locals(ContextStoreIDs, claims.StoreIDs)

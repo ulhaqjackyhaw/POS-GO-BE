@@ -16,6 +16,8 @@ type Store struct {
 type Warehouse struct {
 	ID        string    `json:"id"`
 	StoreID   string    `json:"store_id"`
+	StoreName string    `json:"store_name,omitempty"`
+	StoreCode string    `json:"store_code,omitempty"`
 	Code      string    `json:"code"`
 	Name      string    `json:"name"`
 	IsActive  bool      `json:"is_active"`
@@ -24,13 +26,23 @@ type Warehouse struct {
 }
 
 type Terminal struct {
-	ID        string    `json:"id"`
-	StoreID   string    `json:"store_id"`
-	Code      string    `json:"code"`
-	Name      string    `json:"name"`
-	IsActive  bool      `json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                string     `json:"id"`
+	StoreID           string     `json:"store_id"`
+	StoreName         string     `json:"store_name,omitempty"`
+	StoreCode         string     `json:"store_code,omitempty"`
+	Code              string     `json:"code"`
+	Name              string     `json:"name"`
+	IsActive          bool       `json:"is_active"`
+	AssignedCashierID *string    `json:"assigned_cashier_id,omitempty"`
+	CashierName       string     `json:"cashier_name,omitempty"`
+	CashierUsername   string     `json:"cashier_username,omitempty"`
+	HasActiveShift    bool       `json:"has_active_shift"`
+	ActiveShiftID     string     `json:"active_shift_id,omitempty"`
+	ActiveCashierID   string     `json:"active_cashier_id,omitempty"`
+	ActiveCashierName string     `json:"active_cashier_name,omitempty"`
+	ActiveCashierUser string     `json:"active_cashier_username,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
 // RBAC & User
@@ -57,6 +69,9 @@ type User struct {
 	FullName     string    `json:"full_name"`
 	RoleID       string    `json:"role_id"`
 	RoleCode     string    `json:"role_code,omitempty"`
+	RoleName     string    `json:"role_name,omitempty"`
+	StoreIDs     []string  `json:"store_ids,omitempty"`
+	Stores       []Store   `json:"stores,omitempty"`
 	IsActive     bool      `json:"is_active"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -87,7 +102,8 @@ type ProductWithPrice struct {
 	EffectivePrice int64  `json:"effective_price"`
 	IsOverride     bool   `json:"is_override"`
 	CurrentStock   int64  `json:"current_stock"`
-	WarehouseID    string `json:"warehouse_id"`
+	StoreID        string `json:"store_id"`
+	WarehouseID    string `json:"warehouse_id,omitempty"`
 }
 
 type StoreProductPrice struct {
@@ -103,7 +119,9 @@ type StoreProductPrice struct {
 // Inventory
 type InventoryBalance struct {
 	ID          string    `json:"id"`
-	WarehouseID string    `json:"warehouse_id"`
+	StoreID     string    `json:"store_id"`
+	StoreName   string    `json:"store_name,omitempty"`
+	WarehouseID string    `json:"warehouse_id,omitempty"`
 	ProductID   string    `json:"product_id"`
 	Quantity    int64     `json:"quantity"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -111,7 +129,8 @@ type InventoryBalance struct {
 
 type InventoryLedger struct {
 	ID             string    `json:"id"`
-	WarehouseID    string    `json:"warehouse_id"`
+	StoreID        string    `json:"store_id"`
+	WarehouseID    string    `json:"warehouse_id,omitempty"`
 	ProductID      string    `json:"product_id"`
 	MutationType   string    `json:"mutation_type"` // RECEIVE, SALE, ADJUSTMENT, TRANSFER_OUT, TRANSFER_IN, VOID, REFUND
 	ReferenceType  string    `json:"reference_type"`
@@ -208,8 +227,10 @@ type ApprovalRequest struct {
 type StockTransfer struct {
 	ID              string              `json:"id"`
 	TransferNumber  string              `json:"transfer_number"`
-	FromWarehouseID string              `json:"from_warehouse_id"`
-	ToWarehouseID   string              `json:"to_warehouse_id"`
+	FromStoreID     string              `json:"from_store_id"`
+	ToStoreID       string              `json:"to_store_id"`
+	FromWarehouseID string              `json:"from_warehouse_id,omitempty"`
+	ToWarehouseID   string              `json:"to_warehouse_id,omitempty"`
 	Status          string              `json:"status"` // DRAFT, SHIPPED, RECEIVED, CANCELLED
 	RequestedBy     string              `json:"requested_by"`
 	Notes           string              `json:"notes"`

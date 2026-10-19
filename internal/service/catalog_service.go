@@ -17,18 +17,19 @@ func NewCatalogService(catalogRepo *repository.CatalogRepository, orgRepo *repos
 }
 
 func (s *CatalogService) ListProducts(ctx context.Context, storeID, warehouseID, search string) ([]model.ProductWithPrice, error) {
-	// If warehouseID is empty, try to get default warehouse of store
-	if warehouseID == "" && storeID != "" {
-		whs, err := s.orgRepo.ListWarehouses(ctx, storeID)
-		if err == nil && len(whs) > 0 {
-			warehouseID = whs[0].ID
-		}
+	effectiveStoreID := storeID
+	if effectiveStoreID == "" && warehouseID != "" {
+		effectiveStoreID = warehouseID
 	}
-	return s.catalogRepo.ListProducts(ctx, storeID, warehouseID, search)
+	return s.catalogRepo.ListProducts(ctx, effectiveStoreID, "", search)
 }
 
 func (s *CatalogService) GetProduct(ctx context.Context, productID, storeID, warehouseID string) (*model.ProductWithPrice, error) {
-	p, err := s.catalogRepo.GetProductWithEffectivePrice(ctx, productID, storeID, warehouseID)
+	effectiveStoreID := storeID
+	if effectiveStoreID == "" && warehouseID != "" {
+		effectiveStoreID = warehouseID
+	}
+	p, err := s.catalogRepo.GetProductWithEffectivePrice(ctx, productID, effectiveStoreID, "")
 	if err != nil {
 		return nil, model.ErrInternal("Gagal memuat produk")
 	}
@@ -72,7 +73,12 @@ func (s *CatalogService) SetStorePrice(ctx context.Context, storeID, productID s
 		return model.ErrNotFound("Produk tidak ditemukan")
 	}
 
-	return s.catalogRepo.SetStorePrice(ctx, storeID, productID, price)
+	return s.catalogRepo.SetStorePrice(ctx, &model.StoreProductPrice{
+		StoreID:   storeID,
+		ProductID: productID,
+		Price:     price,
+		IsActive:  true,
+	})
 }
 
 func (s *CatalogService) ListCategories(ctx context.Context) ([]model.Category, error) {

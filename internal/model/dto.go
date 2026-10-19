@@ -34,6 +34,26 @@ type UserInfo struct {
 	StoreIDs    []string `json:"store_ids"`
 }
 
+type CreateUserRequest struct {
+	Username string   `json:"username"`
+	Email    string   `json:"email"`
+	Password string   `json:"password"`
+	FullName string   `json:"full_name"`
+	RoleCode string   `json:"role_code"`
+	RoleID   string   `json:"role_id"`
+	StoreIDs []string `json:"store_ids"`
+}
+
+type UpdateUserRequest struct {
+	FullName string   `json:"full_name"`
+	Email    string   `json:"email"`
+	Password string   `json:"password,omitempty"`
+	RoleCode string   `json:"role_code"`
+	RoleID   string   `json:"role_id"`
+	IsActive *bool    `json:"is_active,omitempty"`
+	StoreIDs []string `json:"store_ids"`
+}
+
 // Catalog DTOs
 type CreateProductRequest struct {
 	SKU        string  `json:"sku"`
@@ -58,11 +78,19 @@ func (r *SetBranchPriceRequest) GetEffectivePrice() int64 {
 
 // Inventory DTOs
 type StockAdjustmentRequest struct {
-	WarehouseID   string `json:"warehouse_id"`
+	StoreID       string `json:"store_id"`
+	WarehouseID   string `json:"warehouse_id,omitempty"`
 	ProductID     string `json:"product_id"`
 	Quantity      int64  `json:"quantity"` // delta change (+ or -)
 	QuantityDelta int64  `json:"quantity_delta,omitempty"`
 	Reason        string `json:"reason"`
+}
+
+func (r *StockAdjustmentRequest) GetStoreID() string {
+	if r.StoreID != "" {
+		return r.StoreID
+	}
+	return r.WarehouseID
 }
 
 func (r *StockAdjustmentRequest) GetEffectiveQuantity() int64 {
@@ -73,11 +101,14 @@ func (r *StockAdjustmentRequest) GetEffectiveQuantity() int64 {
 }
 
 type CurrentStockItem struct {
-	WarehouseID   string    `json:"warehouse_id"`
-	WarehouseName string    `json:"warehouse_name"`
+	StoreID       string    `json:"store_id"`
+	StoreName     string    `json:"store_name"`
+	WarehouseID   string    `json:"warehouse_id,omitempty"`
+	WarehouseName string    `json:"warehouse_name,omitempty"`
 	ProductID     string    `json:"product_id"`
 	ProductName   string    `json:"product_name"`
 	SKU           string    `json:"sku"`
+	Unit          string    `json:"unit"`
 	Quantity      int64     `json:"quantity"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -317,3 +348,50 @@ type TopProductItem struct {
 	Quantity    int64  `json:"quantity"`
 	TotalSales  int64  `json:"total_sales"`
 }
+
+type TerminalSummaryItem struct {
+	TerminalID       string `json:"terminal_id"`
+	TerminalCode     string `json:"terminal_code"`
+	TerminalName     string `json:"terminal_name"`
+	TransactionCount int64  `json:"transaction_count"`
+	GrossSales       int64  `json:"gross_sales"`
+	TotalDiscount    int64  `json:"total_discount"`
+	TotalTax         int64  `json:"total_tax"`
+	NetSales         int64  `json:"net_sales"`
+	VoidCount        int64  `json:"void_count"`
+	VoidAmount       int64  `json:"void_amount"`
+}
+
+type TerminalDailyItem struct {
+	Date             string `json:"date"`
+	DayName          string `json:"day_name"`
+	TerminalID       string `json:"terminal_id"`
+	TerminalCode     string `json:"terminal_code"`
+	TerminalName     string `json:"terminal_name"`
+	TransactionCount int64  `json:"transaction_count"`
+	GrossSales       int64  `json:"gross_sales"`
+	TotalDiscount    int64  `json:"total_discount"`
+	TotalTax         int64  `json:"total_tax"`
+	NetSales         int64  `json:"net_sales"`
+	VoidCount        int64  `json:"void_count"`
+	VoidAmount       int64  `json:"void_amount"`
+}
+
+type TerminalReportResponse struct {
+	Summary        []TerminalSummaryItem `json:"summary"`
+	DailyBreakdown []TerminalDailyItem   `json:"daily_breakdown"`
+}
+
+type CreateTerminalRequest struct {
+	StoreID           string  `json:"store_id"`
+	Code              string  `json:"code"`
+	Name              string  `json:"name"`
+	AssignedCashierID *string `json:"assigned_cashier_id"`
+}
+
+type UpdateTerminalRequest struct {
+	Name              string  `json:"name"`
+	IsActive          *bool   `json:"is_active"`
+	AssignedCashierID *string `json:"assigned_cashier_id"`
+}
+

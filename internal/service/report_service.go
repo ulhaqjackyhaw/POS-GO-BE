@@ -38,3 +38,13 @@ func (s *ReportService) GetTopProducts(ctx context.Context, storeID string, from
 	}
 	return s.reportRepo.GetTopProducts(ctx, storeID, from, to, limit)
 }
+
+func (s *ReportService) GetTerminalSalesReport(ctx context.Context, storeID string, from, to time.Time) (*model.TerminalReportResponse, error) {
+	if to.IsZero() {
+		to = time.Now()
+	}
+	if from.IsZero() {
+		from = to.AddDate(0, 0, -30)
+	}
+	return s.reportRepo.GetTerminalSalesReport(ctx, storeID, from, to)
+}

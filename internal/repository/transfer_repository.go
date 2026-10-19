@@ -19,12 +19,21 @@ func NewTransferRepository(pool *pgxpool.Pool) *TransferRepository {
 }
 
 func (r *TransferRepository) CreateTransfer(ctx context.Context, tx pgx.Tx, t *model.StockTransfer) error {
+	fromID := t.FromStoreID
+	if fromID == "" {
+		fromID = t.FromWarehouseID
+	}
+	toID := t.ToStoreID
+	if toID == "" {
+		toID = t.ToWarehouseID
+	}
+
 	query := `
-		INSERT INTO stock_transfers (transfer_number, from_warehouse_id, to_warehouse_id, status, requested_by, notes, created_at, updated_at)
+		INSERT INTO stock_transfers (transfer_number, from_store_id, to_store_id, status, requested_by, notes, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
 		RETURNING id, created_at, updated_at
 	`
-	err := tx.QueryRow(ctx, query, t.TransferNumber, t.FromWarehouseID, t.ToWarehouseID, t.Status, t.RequestedBy, t.Notes).
+	err := tx.QueryRow(ctx, query, t.TransferNumber, fromID, toID, t.Status, t.RequestedBy, t.Notes).
 		Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		return err
@@ -46,14 +55,17 @@ func (r *TransferRepository) CreateTransfer(ctx context.Context, tx pgx.Tx, t *m
 }
 
 func (r *TransferRepository) GetTransferByID(ctx context.Context, id string) (*model.StockTransfer, error) {
+	if id == "" {
+		return nil, nil
+	}
 	query := `
-		SELECT id, transfer_number, from_warehouse_id, to_warehouse_id, status, requested_by, COALESCE(notes, ''), created_at, updated_at
+		SELECT id, transfer_number, from_store_id, to_store_id, status, requested_by, COALESCE(notes, ''), created_at, updated_at
 		FROM stock_transfers
-		WHERE id = $1
+		WHERE id::text = $1
 	`
 	var t model.StockTransfer
 	err := r.pool.QueryRow(ctx, query, id).Scan(
-		&t.ID, &t.TransferNumber, &t.FromWarehouseID, &t.ToWarehouseID,
+		&t.ID, &t.TransferNumber, &t.FromStoreID, &t.ToStoreID,
 		&t.Status, &t.RequestedBy, &t.Notes, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
@@ -62,6 +74,8 @@ func (r *TransferRepository) GetTransferByID(ctx context.Context, id string) (*m
 		}
 		return nil, err
 	}
+	t.FromWarehouseID = t.FromStoreID
+	t.ToWarehouseID = t.ToStoreID
 
 	// Fetch items
 	rows, err := r.pool.Query(ctx, `SELECT id, transfer_id, product_id, quantity, received_quantity FROM stock_transfer_items WHERE transfer_id = $1`, t.ID)
@@ -89,7 +103,7 @@ func (r *TransferRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, id, st
 
 func (r *TransferRepository) ListTransfers(ctx context.Context) ([]model.StockTransfer, error) {
 	query := `
-		SELECT id, transfer_number, from_warehouse_id, to_warehouse_id, status, requested_by, COALESCE(notes, ''), created_at, updated_at
+		SELECT id, transfer_number, from_store_id, to_store_id, status, requested_by, COALESCE(notes, ''), created_at, updated_at
 		FROM stock_transfers
 		ORDER BY created_at DESC
 	`
@@ -102,9 +116,11 @@ func (r *TransferRepository) ListTransfers(ctx context.Context) ([]model.StockTr
 	var list []model.StockTransfer
 	for rows.Next() {
 		var t model.StockTransfer
-		if err := rows.Scan(&t.ID, &t.TransferNumber, &t.FromWarehouseID, &t.ToWarehouseID, &t.Status, &t.RequestedBy, &t.Notes, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.TransferNumber, &t.FromStoreID, &t.ToStoreID, &t.Status, &t.RequestedBy, &t.Notes, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
+		t.FromWarehouseID = t.FromStoreID
+		t.ToWarehouseID = t.ToStoreID
 		list = append(list, t)
 	}
 	return list, nil

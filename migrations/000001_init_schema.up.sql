@@ -16,16 +16,6 @@ CREATE TABLE IF NOT EXISTS stores (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS warehouses (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    store_id UUID NOT NULL REFERENCES stores(id) ON DELETE RESTRICT,
-    code VARCHAR(50) UNIQUE NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS terminals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE RESTRICT,
@@ -110,20 +100,20 @@ CREATE TABLE IF NOT EXISTS store_product_prices (
     UNIQUE(store_id, product_id)
 );
 
--- 4. Inventory Balances & Ledgers
+-- 4. Inventory Balances & Ledgers (Direct Store-Level Stock Management)
 CREATE TABLE IF NOT EXISTS inventory_balances (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    warehouse_id UUID NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
+    store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     quantity BIGINT NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(warehouse_id, product_id),
+    UNIQUE(store_id, product_id),
     CONSTRAINT chk_stock_non_negative CHECK (quantity >= 0)
 );
 
 CREATE TABLE IF NOT EXISTS inventory_ledgers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    warehouse_id UUID NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+    store_id UUID NOT NULL REFERENCES stores(id) ON DELETE RESTRICT,
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
     mutation_type VARCHAR(50) NOT NULL,
     reference_type VARCHAR(50),
@@ -215,12 +205,12 @@ CREATE TABLE IF NOT EXISTS approval_requests (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 8. Stock Transfers
+-- 8. Stock Transfers (Inter-Store / Antarcabang)
 CREATE TABLE IF NOT EXISTS stock_transfers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     transfer_number VARCHAR(100) UNIQUE NOT NULL,
-    from_warehouse_id UUID NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
-    to_warehouse_id UUID NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
+    from_store_id UUID NOT NULL REFERENCES stores(id) ON DELETE RESTRICT,
+    to_store_id UUID NOT NULL REFERENCES stores(id) ON DELETE RESTRICT,
     status VARCHAR(50) NOT NULL DEFAULT 'DRAFT',
     requested_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     notes TEXT,
@@ -252,7 +242,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
 CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
-CREATE INDEX IF NOT EXISTS idx_inventory_balances_warehouse ON inventory_balances(warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_balances_store ON inventory_balances(store_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_ledgers_store ON inventory_ledgers(store_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_ledgers_product ON inventory_ledgers(product_id);
 CREATE INDEX IF NOT EXISTS idx_sales_transactions_store ON sales_transactions(store_id);
 CREATE INDEX IF NOT EXISTS idx_sales_transactions_created_at ON sales_transactions(created_at);

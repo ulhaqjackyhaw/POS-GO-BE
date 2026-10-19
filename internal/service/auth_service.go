@@ -63,6 +63,7 @@ func (s *AuthService) Login(ctx context.Context, req model.LoginRequest) (*model
 	claims := jwt.MapClaims{
 		"user_id":     user.ID,
 		"username":    user.Username,
+		"full_name":   user.FullName,
 		"role_code":   user.RoleCode,
 		"permissions": perms,
 		"store_ids":   storeIDs,
