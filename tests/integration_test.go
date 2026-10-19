@@ -131,12 +131,12 @@ func TestCompletePOSIntegration(t *testing.T) {
 	_, _ = pool.Exec(ctx, `UPDATE inventory_balances SET quantity = 100 WHERE warehouse_id = $1 AND product_id = $2`, warehouseID, tehMelati.ID)
 
 	// 4. Test Cashier Shift
-	// Close any previously open shift if leftover
-	if prevShift, _ := shiftRepo.GetActiveShift(ctx, storeID, terminalID, cashierID); prevShift != nil {
+	// Close any previously open shift on terminal if leftover
+	if prevShift, _ := shiftRepo.GetActiveShift(ctx, storeID, terminalID, ""); prevShift != nil {
 		_, _ = shiftService.CloseShift(ctx, prevShift.ID, model.CloseShiftRequest{
 			EndingCashActual: prevShift.StartingCash,
 			Notes:            "Cleaning previous test shift",
-		}, cashierID)
+		}, prevShift.UserID)
 	}
 
 	shift, err := shiftService.OpenShift(ctx, model.OpenShiftRequest{

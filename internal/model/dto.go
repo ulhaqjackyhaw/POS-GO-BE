@@ -34,6 +34,26 @@ type UserInfo struct {
 	StoreIDs    []string `json:"store_ids"`
 }
 
+type CreateUserRequest struct {
+	Username string   `json:"username"`
+	Email    string   `json:"email"`
+	Password string   `json:"password"`
+	FullName string   `json:"full_name"`
+	RoleCode string   `json:"role_code"`
+	RoleID   string   `json:"role_id"`
+	StoreIDs []string `json:"store_ids"`
+}
+
+type UpdateUserRequest struct {
+	FullName string   `json:"full_name"`
+	Email    string   `json:"email"`
+	Password string   `json:"password,omitempty"`
+	RoleCode string   `json:"role_code"`
+	RoleID   string   `json:"role_id"`
+	IsActive *bool    `json:"is_active,omitempty"`
+	StoreIDs []string `json:"store_ids"`
+}
+
 // Catalog DTOs
 type CreateProductRequest struct {
 	SKU        string  `json:"sku"`
@@ -317,3 +337,17 @@ type TopProductItem struct {
 	Quantity    int64  `json:"quantity"`
 	TotalSales  int64  `json:"total_sales"`
 }
+
+type CreateTerminalRequest struct {
+	StoreID           string  `json:"store_id"`
+	Code              string  `json:"code"`
+	Name              string  `json:"name"`
+	AssignedCashierID *string `json:"assigned_cashier_id"`
+}
+
+type UpdateTerminalRequest struct {
+	Name              string  `json:"name"`
+	IsActive          *bool   `json:"is_active"`
+	AssignedCashierID *string `json:"assigned_cashier_id"`
+}
+

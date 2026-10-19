@@ -10,8 +10,8 @@ func RequireStoreAccess() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		_, roleCode, storeIDs, _ := GetAuthUser(c)
 
-		// Owner has unrestricted global access across all branches
-		if roleCode == "owner" {
+		// Owner and Auditor have unrestricted global access across all branches
+		if roleCode == "owner" || roleCode == "auditor" {
 			return c.Next()
 		}
 

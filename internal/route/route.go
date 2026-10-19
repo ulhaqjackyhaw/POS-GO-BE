@@ -20,6 +20,7 @@ type RouterConfig struct {
 	OfflineH  *handler.OfflineSyncHandler
 	ReportH   *handler.ReportHandler
 	HealthH   *handler.HealthHandler
+	UserH     *handler.UserHandler
 }
 
 func SetupRoutes(cfg RouterConfig) {
@@ -40,13 +41,42 @@ func SetupRoutes(cfg RouterConfig) {
 	// User info
 	protected.Get("/auth/me", cfg.AuthH.Me)
 
+	// Roles
+	protected.Get("/roles", middleware.RequireRoleOrPermission([]string{"store_manager"}, "org:manage"), cfg.UserH.ListRoles)
+
+	// Users & Staff Management (Cashier, Manager, Custom Store Placement)
+	users := protected.Group("/users", middleware.RequireRoleOrPermission([]string{"store_manager"}, "org:manage"))
+	users.Get("", cfg.UserH.ListUsers)
+	users.Post("", cfg.UserH.CreateUser)
+	users.Get("/:id", cfg.UserH.GetUser)
+	users.Put("/:id", cfg.UserH.UpdateUser)
+	users.Patch("/:id/status", cfg.UserH.ToggleActive)
+
 	// Organizations & Stores
 	stores := protected.Group("/stores")
 	stores.Get("", cfg.OrgH.ListStores)
 	stores.Post("", middleware.RequirePermission("org:manage"), cfg.OrgH.CreateStore)
 	stores.Get("/:store_id", middleware.RequireStoreAccess(), cfg.OrgH.GetStore)
 	stores.Get("/:store_id/warehouses", middleware.RequireStoreAccess(), cfg.OrgH.ListWarehouses)
+	stores.Post("/:store_id/warehouses", middleware.RequirePermission("org:manage"), cfg.OrgH.CreateWarehouse)
 	stores.Get("/:store_id/terminals", middleware.RequireStoreAccess(), cfg.OrgH.ListTerminals)
+	stores.Post("/:store_id/terminals", middleware.RequireRoleOrPermission([]string{"store_manager"}, "org:manage"), cfg.OrgH.CreateTerminal)
+
+	// Master Data Gudang (Warehouses)
+	warehouses := protected.Group("/warehouses")
+	warehouses.Get("", cfg.OrgH.ListAllWarehouses)
+	warehouses.Post("", middleware.RequirePermission("org:manage"), cfg.OrgH.CreateWarehouse)
+	warehouses.Get("/:id", cfg.OrgH.GetWarehouse)
+	warehouses.Put("/:id", middleware.RequirePermission("org:manage"), cfg.OrgH.UpdateWarehouse)
+	warehouses.Delete("/:id", middleware.RequirePermission("org:manage"), cfg.OrgH.DeleteWarehouse)
+
+	// Master Data Terminal POS
+	terminals := protected.Group("/terminals", middleware.RequireRoleOrPermission([]string{"store_manager"}, "org:manage"))
+	terminals.Get("", cfg.OrgH.ListAllTerminals)
+	terminals.Post("", cfg.OrgH.CreateTerminal)
+	terminals.Get("/:id", cfg.OrgH.GetTerminal)
+	terminals.Put("/:id", cfg.OrgH.UpdateTerminal)
+	terminals.Delete("/:id", cfg.OrgH.DeleteTerminal)
 
 	// Categories
 	protected.Get("/categories", middleware.RequirePermission("catalog:read"), cfg.CatalogH.ListCategories)

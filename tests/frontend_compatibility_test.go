@@ -72,12 +72,12 @@ func TestFrontendCompatibilityEndpoints(t *testing.T) {
 	terminals, _ := orgRepo.ListTerminals(ctx, storeID)
 	terminalID := terminals[0].ID
 
-	// Close previous shift if any
-	if prev, _ := shiftRepo.GetActiveShift(ctx, storeID, terminalID, cashierID); prev != nil {
+	// Close previous shift on terminal if any
+	if prev, _ := shiftRepo.GetActiveShift(ctx, storeID, terminalID, ""); prev != nil {
 		_, _ = shiftService.CloseShift(ctx, prev.ID, model.CloseShiftRequest{
 			ActualCashMinor:   prev.StartingCash,
 			DiscrepancyReason: "Reset",
-		}, cashierID)
+		}, prev.UserID)
 	}
 
 	openReq := model.OpenShiftRequest{

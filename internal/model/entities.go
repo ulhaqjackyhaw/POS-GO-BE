@@ -16,6 +16,8 @@ type Store struct {
 type Warehouse struct {
 	ID        string    `json:"id"`
 	StoreID   string    `json:"store_id"`
+	StoreName string    `json:"store_name,omitempty"`
+	StoreCode string    `json:"store_code,omitempty"`
 	Code      string    `json:"code"`
 	Name      string    `json:"name"`
 	IsActive  bool      `json:"is_active"`
@@ -24,13 +26,23 @@ type Warehouse struct {
 }
 
 type Terminal struct {
-	ID        string    `json:"id"`
-	StoreID   string    `json:"store_id"`
-	Code      string    `json:"code"`
-	Name      string    `json:"name"`
-	IsActive  bool      `json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                string     `json:"id"`
+	StoreID           string     `json:"store_id"`
+	StoreName         string     `json:"store_name,omitempty"`
+	StoreCode         string     `json:"store_code,omitempty"`
+	Code              string     `json:"code"`
+	Name              string     `json:"name"`
+	IsActive          bool       `json:"is_active"`
+	AssignedCashierID *string    `json:"assigned_cashier_id,omitempty"`
+	CashierName       string     `json:"cashier_name,omitempty"`
+	CashierUsername   string     `json:"cashier_username,omitempty"`
+	HasActiveShift    bool       `json:"has_active_shift"`
+	ActiveShiftID     string     `json:"active_shift_id,omitempty"`
+	ActiveCashierID   string     `json:"active_cashier_id,omitempty"`
+	ActiveCashierName string     `json:"active_cashier_name,omitempty"`
+	ActiveCashierUser string     `json:"active_cashier_username,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
 // RBAC & User
@@ -57,6 +69,9 @@ type User struct {
 	FullName     string    `json:"full_name"`
 	RoleID       string    `json:"role_id"`
 	RoleCode     string    `json:"role_code,omitempty"`
+	RoleName     string    `json:"role_name,omitempty"`
+	StoreIDs     []string  `json:"store_ids,omitempty"`
+	Stores       []Store   `json:"stores,omitempty"`
 	IsActive     bool      `json:"is_active"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`

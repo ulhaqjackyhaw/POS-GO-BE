@@ -50,13 +50,22 @@ func (s *ShiftService) OpenShift(ctx context.Context, req model.OpenShiftRequest
 		return nil, model.ErrValidation("StoreID, TerminalID, dan modal awal (>= 0) wajib diisi")
 	}
 
-	// Check if already has open shift
-	active, err := s.shiftRepo.GetActiveShift(ctx, req.StoreID, req.TerminalID, userID)
+	// Check if user already has an active open shift
+	activeUserShift, err := s.shiftRepo.GetActiveShift(ctx, req.StoreID, "", userID)
 	if err != nil {
 		return nil, model.ErrInternal("Gagal memeriksa status shift aktif")
 	}
-	if active != nil {
+	if activeUserShift != nil {
 		return nil, model.ErrValidation("Anda masih memiliki shift yang sedang aktif pada cabang ini")
+	}
+
+	// Check if this terminal is currently in active use by another cashier
+	activeTermShift, err := s.shiftRepo.GetActiveShift(ctx, req.StoreID, req.TerminalID, "")
+	if err != nil {
+		return nil, model.ErrInternal("Gagal memeriksa status terminal")
+	}
+	if activeTermShift != nil {
+		return nil, model.ErrValidation("Terminal POS ini sedang aktif digunakan oleh kasir lain. Silakan pilih terminal yang sedang kosong.")
 	}
 
 	note := req.Note

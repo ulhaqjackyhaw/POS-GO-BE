@@ -80,6 +80,7 @@ func Run() {
 	approvalService := service.NewApprovalService(approvalRepo, auditRepo)
 	offlineSyncService := service.NewOfflineSyncService(posService, txRepo, auditRepo)
 	reportService := service.NewReportService(reportRepo)
+	userService := service.NewUserService(userRepo, orgRepo)
 
 	// 7. Initialize Handlers
 	authH := handler.NewAuthHandler(authService)
@@ -92,6 +93,7 @@ func Run() {
 	offlineH := handler.NewOfflineSyncHandler(offlineSyncService)
 	reportH := handler.NewReportHandler(reportService)
 	healthH := handler.NewHealthHandler(pool)
+	userH := handler.NewUserHandler(userService)
 
 	// 8. Initialize Fiber App with strict AGENT.md Error Handler
 	app := fiber.New(fiber.Config{
@@ -122,6 +124,7 @@ func Run() {
 		OfflineH:  offlineH,
 		ReportH:   reportH,
 		HealthH:   healthH,
+		UserH:     userH,
 	})
 
 	// 10. Start Server with Graceful Shutdown
